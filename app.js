@@ -42,12 +42,20 @@ const userSchema = new mongoose.Schema({
     secret: String
 });
 
+//Passport local mongoose plugin to simplify username password login with passport
 userSchema.plugin(passpostLocalMongoose);
+
+//A plugin to make findOrCreate function work in the google strategy
 userSchema.plugin(findOrCreate);
 
+
+//Creating model
 const User = new mongoose.model("User", userSchema);
 
+//The local strategy for register and login with username and password
 passport.use(User.createStrategy());
+
+//Serializing and deserializing users for all the auth strategies
 passport.serializeUser(function(user, done) {
     done(null, user.id);
   });
@@ -58,6 +66,7 @@ passport.serializeUser(function(user, done) {
     });
   });
   
+//Google auth strategy  
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
@@ -76,6 +85,8 @@ app.get("/", function(req, res){
     res.render("home");
 })
 
+
+//Get and post got login route
 app.route("/login")
     .get(function(req, res){
         res.render("login");
@@ -90,6 +101,7 @@ app.route("/login")
                 console.log(err);
                 res.redirect("/register");
             } else {
+                //Authenticating and storing session cookies using passport
                 passport.authenticate("local")(req, res, function() {
                     res.redirect("/secrets");
                 })
@@ -97,6 +109,7 @@ app.route("/login")
         })
     })
 
+//Get and post for register route
 app.route("/register")
     .get(function(req, res){
         res.render("register");
@@ -115,12 +128,15 @@ app.route("/register")
 
     })
 
+//Logout
 app.get("/logout", function(req, res) {
     req.logout();
     res.redirect("/");
 })   
 
+//Get for secrets route to render all the secrets
 app.get("/secrets", function (req, res) {
+    //{$ne: null} for finding all the users who have secrets
     User.find({"secret": {$ne: null}}, function (err, foundUsers) {
         if (err) {
             console.log(err);
@@ -134,21 +150,25 @@ app.get("/secrets", function (req, res) {
         
 })    
 
-app.get("/submit", function (req, res) {
+//Get and post for submit route
+app.route("/submit")
+.get(function (req, res) {
+    //Checking is user is authenticated
     if (req.isAuthenticated()) {
         res.render("submit");
     }else{
         res.redirect("/login");
     }
     
-})    
-
-app.post("/submit", function (req, res) {
+}) 
+.post(function (req, res) {
     const secret = req.body.secret;
+    //Finding logedin users id from req.user._id (the id is stored in req by passport)
     User.findById(req.user._id, function(err, foundUser) {
         if (err) {
             console.log(err);
         } else {
+            //Saving secrets into secret field of that user
             if (foundUser) {
                 foundUser.secret = secret;
                 foundUser.save();
@@ -158,18 +178,22 @@ app.post("/submit", function (req, res) {
     })
 })    
 
-
+//The auth route for google which is called once google auth button is clicked
 app.get("/auth/google",
   passport.authenticate("google", { scope:
       [ "email", "profile" ] }
 ));
 
+
+//The redirect uri for google auth
 app.get("/auth/google/secrets", 
   passport.authenticate("google", { failureRedirect: "/login" }),
   function(req, res) {
     // Successful authentication, redirect home.
     res.redirect("/secrets");
   }); 
+
+ 
 app.listen(3000, function(err){
     if (err) {
         console.log(err);
